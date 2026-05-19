@@ -2,24 +2,51 @@
 body {
     margin: 0;
     padding: 0;
-    background-color: #111;
+    background-color: #050505;
+    background-image: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
     color: #fff;
-    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+    font-family: 'Courier New', Courier, 'Helvetica Neue', Arial, sans-serif; /* デジタル感のあるフォント */
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
 }
 
-#game-container {
+/* 筐体全体 */
+.slot-machine {
     width: 100%;
     max-width: 800px;
-    background-color: #222;
-    border: 4px solid #444;
-    border-radius: 10px;
-    overflow: hidden;
+    background: linear-gradient(180deg, #111 0%, #2a2a35 20%, #1a1a2e 80%, #050505 100%);
+    border: 6px solid #1a1a1a;
+    border-radius: 20px 20px 10px 10px;
+    box-shadow: 0 0 30px rgba(0, 255, 255, 0.1), inset 0 0 20px #000;
     display: flex;
     flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 筐体上部ランプ */
+.machine-top-led {
+    height: 15px;
+    width: 100%;
+    background: linear-gradient(90deg, #ff0000, #ff00ff, #00ffff, #ff00ff, #ff0000);
+    opacity: 0.5;
+    box-shadow: 0 5px 15px rgba(255, 0, 255, 0.3);
+    animation: led-pulse 2s infinite alternate;
+}
+
+@keyframes led-pulse {
+    0% { opacity: 0.3; }
+    100% { opacity: 0.8; }
+}
+
+/* 液晶ベゼル */
+#display-bezel {
+    padding: 15px;
+    background: #000;
+    border-bottom: 2px solid #333;
+    box-shadow: inset 0 0 10px #000;
 }
 
 /* 演出・メディアエリア */
@@ -28,7 +55,10 @@ body {
     width: 100%;
     aspect-ratio: 16 / 9;
     background-color: #000;
+    border-radius: 8px;
+    border: 2px solid #222;
     overflow: hidden;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8) inset;
 }
 
 #bg-video {
@@ -70,52 +100,152 @@ body {
 #info-overlay {
     position: absolute;
     top: 10px;
-    left: 10px;
-    right: 10px;
+    left: 15px;
+    right: 15px;
     display: flex;
     justify-content: space-between;
-    text-shadow: 2px 2px 4px #000;
-    font-size: 1.2rem;
-    font-weight: bold;
+    font-size: 1.5rem;
+    font-weight: 900;
     z-index: 5;
     pointer-events: none;
+    font-family: 'Arial Black', sans-serif;
 }
 
-#state-display {
-    color: #00ff00;
+.neon-text-green {
+    color: #fff;
+    text-shadow: 0 0 5px #0f0, 0 0 10px #0f0, 0 0 20px #0f0;
 }
 
-#games-display {
-    color: #ffff00;
+.neon-text-yellow {
+    color: #fff;
+    text-shadow: 0 0 5px #ff0, 0 0 10px #ff0, 0 0 20px #ff0;
+}
+
+.neon-text-red {
+    color: #fff;
+    text-shadow: 0 0 5px #f00, 0 0 10px #f00, 0 0 20px #f00;
+}
+
+.neon-text-rainbow {
+    background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f);
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: rainbow 2s linear infinite;
+    text-shadow: 0 0 5px rgba(255,255,255,0.5);
+}
+
+@keyframes rainbow {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
+}
+
+/* スマスロ特有のセグメント表示エリア */
+.segment-panel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #050505;
+    padding: 10px 20px;
+    border-bottom: 3px solid #1a1a2e;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
+}
+
+.segment-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #000;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid #222;
+}
+
+.diff-box {
+    border-color: #00ffff;
+    box-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+}
+
+.segment-label {
+    font-size: 0.6rem;
+    color: #888;
+    margin-bottom: 2px;
+}
+
+.segment-number {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #ff3333;
+    text-shadow: 0 0 5px #f00;
+    letter-spacing: 2px;
+}
+
+.diff-box .segment-number {
+    color: #00ffff;
+    text-shadow: 0 0 5px #0ff;
+}
+
+.lamp-box {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.lamp {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: #222;
+    color: #555;
+    font-weight: bold;
+    text-align: center;
+    border: 1px solid #111;
+}
+
+.lamp.active-at {
+    background: #f0f;
+    color: #fff;
+    box-shadow: 0 0 10px #f0f;
+}
+
+.lamp.active-complete {
+    background: #fff;
+    color: #000;
+    box-shadow: 0 0 15px #fff;
+    animation: flash 0.2s infinite;
 }
 
 /* スロット・操作エリア */
 #slot-area {
-    padding: 20px;
-    background-color: #333;
+    padding: 25px 20px;
+    background: linear-gradient(180deg, #1a1a2e, #111);
     display: flex;
     flex-direction: column;
     align-items: center;
+    border-top: 1px solid #333;
 }
 
 .reels-container {
     display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    background-color: #000;
-    padding: 10px;
-    border-radius: 5px;
-    border: 2px solid #666;
+    gap: 15px;
+    margin-bottom: 25px;
+    background: #0a0a0a;
+    padding: 15px;
+    border-radius: 10px;
+    border: 3px solid #333;
+    box-shadow: inset 0 0 20px #000, 0 5px 15px rgba(0,0,0,0.5);
 }
 
 .reel {
-    width: 100px;
+    width: 110px;
     height: 240px; /* 3シンボル分 */
-    background-color: #fff;
+    background-color: #f0f0f0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    border: 1px solid #333;
+    border: 2px solid #555;
+    border-radius: 5px;
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
 }
 
 .reel-symbol {
@@ -138,61 +268,97 @@ body {
 
 .controls-container {
     display: flex;
-    gap: 20px;
+    gap: 30px;
     align-items: center;
     width: 100%;
     justify-content: center;
+    padding: 10px;
+    background: #111;
+    border-radius: 15px;
+    box-shadow: inset 0 5px 10px rgba(0,0,0,0.8), 0 2px 0 rgba(255,255,255,0.1);
 }
 
 .btn-action {
-    padding: 15px 25px;
-    font-size: 1.2rem;
+    padding: 15px 10px;
+    font-size: 1.1rem;
     font-weight: bold;
     cursor: pointer;
     border-radius: 50%;
-    border: none;
-    background: radial-gradient(circle, #ff5555, #aa0000);
+    border: 4px solid #111;
+    background: radial-gradient(circle at 30% 30%, #ff5555, #aa0000);
     color: white;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-    transition: transform 0.1s, box-shadow 0.1s;
-    width: 100px;
-    height: 100px;
+    box-shadow: 0 8px 15px rgba(0,0,0,0.8), inset 0 -5px 10px rgba(0,0,0,0.5), inset 0 5px 10px rgba(255,255,255,0.5);
+    transition: all 0.1s;
+    width: 90px;
+    height: 90px;
+    text-shadow: 1px 1px 2px #000;
 }
 
 .btn-action:active:not(:disabled) {
-    transform: translateY(4px);
-    box-shadow: 0 1px 5px rgba(0,0,0,0.5);
+    transform: translateY(8px);
+    box-shadow: 0 0px 5px rgba(0,0,0,0.8), inset 0 -2px 5px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.2);
 }
 
 .btn-action:disabled {
-    background: radial-gradient(circle, #777, #333);
+    background: radial-gradient(circle at 30% 30%, #555, #222);
     cursor: not-allowed;
     transform: none;
+    box-shadow: 0 4px 5px rgba(0,0,0,0.8), inset 0 -2px 5px rgba(0,0,0,0.5);
+    color: #888;
+}
+
+#btn-lever {
+    background: radial-gradient(circle at 30% 30%, #ff3333, #880000);
+    width: 110px;
+    height: 110px;
+    font-size: 1.2rem;
+    border: 5px solid #220000;
+}
+#btn-lever:active:not(:disabled) {
+    background: radial-gradient(circle at 30% 30%, #ff5555, #aa0000);
+    box-shadow: 0 0 20px #ff0000;
 }
 
 .stop-buttons {
     display: flex;
-    gap: 15px;
+    gap: 20px;
 }
 
 .btn-stop {
-    background: radial-gradient(circle, #5555ff, #0000aa);
-    width: 80px;
-    height: 80px;
-    font-size: 1rem;
+    background: radial-gradient(circle at 30% 30%, #33aaff, #003388);
+    width: 85px;
+    height: 85px;
+    font-size: 1.2rem;
+    border: 4px solid #001133;
+}
+
+.machine-bottom {
+    height: 30px;
+    width: 100%;
+    background: linear-gradient(90deg, #111, #333, #111);
+    border-top: 2px solid #555;
+    box-shadow: inset 0 5px 10px rgba(0,0,0,0.8);
 }
 
 .debug-controls {
-    margin-top: 20px;
     width: 100%;
-    border-top: 1px solid #555;
-    padding-top: 10px;
-    font-size: 0.9rem;
-    color: #aaa;
+    background: #000;
+    padding: 10px;
+    font-size: 0.8rem;
+    color: #666;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.admin-panel {
+    display: flex;
+    gap: 20px;
+    align-items: center;
 }
 #message-log {
     margin-top: 5px;
-    height: 40px;
+    height: 20px;
     overflow-y: hidden;
-    color: #fff;
+    color: #aaa;
+    font-family: monospace;
 }

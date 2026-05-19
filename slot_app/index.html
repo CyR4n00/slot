@@ -7,22 +7,44 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div id="game-container">
-        <!-- 背景・演出表示エリア (動画/画像がここに表示されます) -->
-        <div id="media-area">
-            <video id="bg-video" autoplay loop muted playsinline>
-                <!-- ソースはJSから動的に設定されます -->
-            </video>
-            <div id="cutin-layer" class="hidden">
-                <img id="cutin-image" src="" alt="Cutin">
-            </div>
+    <div id="game-container" class="slot-machine">
+        <div class="machine-top-led"></div>
 
-            <!-- 情報表示エリア (現在の状態、ATゲーム数など) -->
-            <div id="info-overlay">
-                <div id="state-display">通常</div>
-                <div id="games-display">G: 0</div>
-                <div id="credit-display">Credit: 50</div>
-                <div id="setting-display">設定: 1</div>
+        <!-- 液晶ディスプレイ（演出表示エリア） -->
+        <div id="display-bezel">
+            <div id="media-area">
+                <video id="bg-video" autoplay loop muted playsinline>
+                    <!-- ソースはJSから動的に設定されます -->
+                </video>
+                <div id="cutin-layer" class="hidden">
+                    <img id="cutin-image" src="" alt="Cutin">
+                </div>
+
+                <!-- 液晶内情報表示 -->
+                <div id="info-overlay">
+                    <div id="state-display" class="neon-text-green">通常</div>
+                    <div id="games-display" class="neon-text-yellow">G: 0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- デジタルセグメント・ランプエリア (スマスロ特有の表示群) -->
+        <div class="segment-panel">
+            <div class="segment-box">
+                <span class="segment-label">CREDIT</span>
+                <span id="credit-display" class="segment-number">50</span>
+            </div>
+            <div class="segment-box">
+                <span class="segment-label">PAY</span>
+                <span id="pay-display" class="segment-number">0</span>
+            </div>
+            <div class="segment-box diff-box">
+                <span class="segment-label">差枚数</span>
+                <span id="diff-display" class="segment-number">0</span>
+            </div>
+            <div class="lamp-box">
+                <div id="lamp-at" class="lamp">AT</div>
+                <div id="lamp-complete" class="lamp">CMPLT</div>
             </div>
         </div>
 
@@ -51,14 +73,18 @@
             <div class="controls-container">
                 <button id="btn-lever" class="btn-action">レバーON<br>(Space)</button>
                 <div class="stop-buttons">
-                    <button id="btn-stop-left" class="btn-action btn-stop" disabled>左<br>(Z)</button>
-                    <button id="btn-stop-center" class="btn-action btn-stop" disabled>中<br>(X)</button>
-                    <button id="btn-stop-right" class="btn-action btn-stop" disabled>右<br>(C)</button>
+                    <button id="btn-stop-left" class="btn-action btn-stop" disabled>L<br>(Z)</button>
+                    <button id="btn-stop-center" class="btn-action btn-stop" disabled>C<br>(X)</button>
+                    <button id="btn-stop-right" class="btn-action btn-stop" disabled>R<br>(C)</button>
                 </div>
             </div>
+        </div>
 
-            <!-- デバッグ・設定変更用コントロール (本番時は非表示推奨) -->
-            <div class="debug-controls">
+        <div class="machine-bottom"></div>
+
+        <!-- デバッグ・設定変更用コントロール (本番時は非表示推奨) -->
+        <div class="debug-controls">
+            <div class="admin-panel">
                 <label>設定変更:
                     <select id="setting-select">
                         <option value="1">設定1</option>
@@ -69,8 +95,9 @@
                         <option value="6">設定6</option>
                     </select>
                 </label>
-                <div id="message-log"></div>
+                <div id="setting-display">現在の設定: 1</div>
             </div>
+            <div id="message-log"></div>
         </div>
     </div>
 

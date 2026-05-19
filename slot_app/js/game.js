@@ -6,7 +6,8 @@ const GAME_STATE = {
     NORMAL: "NORMAL",
     CZ: "CZ",
     AT: "AT",
-    BATTLE: "BATTLE"
+    BATTLE: "BATTLE",
+    KAMIOCHI: "KAMIOCHI" // 上位AT「神堕」
 };
 
 const SYMBOLS = {
@@ -27,6 +28,15 @@ let isReelSpinning = false;
 let spinningReels = []; // [left, center, right] (true=spinning)
 let currentRole = SYMBOLS.BLANK;
 
+// クレジット・差枚数管理 (スマスロ機能)
+let credit = 50;
+let totalDiff = 0; // 差枚数 (有利区間管理)
+let isComplete = false; // コンプリート機能発動フラグ
+
+// 定数 (有利区間・コンプリート)
+const ENDING_DIFF = 2400; // 有利区間完走ライン (簡易的に+2400枚)
+const COMPLETE_DIFF = 19000; // コンプリート機能発動ライン
+
 // DOMエレメント
 const btnLever = document.getElementById("btn-lever");
 const btnStops = [
@@ -38,6 +48,11 @@ const stateDisplay = document.getElementById("state-display");
 const gamesDisplay = document.getElementById("games-display");
 const settingSelect = document.getElementById("setting-select");
 const messageLog = document.getElementById("message-log");
+const creditDisplay = document.getElementById("credit-display");
+const payDisplay = document.getElementById("pay-display");
+const diffDisplay = document.getElementById("diff-display");
+const lampAt = document.getElementById("lamp-at");
+const lampComplete = document.getElementById("lamp-complete");
 
 const bgVideo = document.getElementById("bg-video");
 const cutinLayer = document.getElementById("cutin-layer");
@@ -142,12 +157,16 @@ function processStateTransition(role) {
             setTimeout(() => changeState(GAME_STATE.AT), 1000);
         }
     }
-    else if (currentState === GAME_STATE.AT) {
-        // AT中: レア役でゲーム数上乗せ、またはバトル勝率ストックなどの抽選
+    else if (currentState === GAME_STATE.AT || currentState === GAME_STATE.KAMIOCHI) {
+        // AT中 / 神堕中: レア役でゲーム数上乗せ
         if (isRare) {
-            logMessage("AT中レア役！ ゲーム数上乗せ！");
+            let addGames = 10;
+            if (currentState === GAME_STATE.KAMIOCHI) {
+                 addGames = 30; // 上位AT「神堕」なら上乗せ性能が大幅アップ
+            }
+            logMessage(`AT中レア役！ ${addGames}G 上乗せ！`);
             showCutin("rare");
-            atGamesLeft += 10; // 簡易的に10G上乗せ
+            atGamesLeft += addGames;
         }
     }
     else if (currentState === GAME_STATE.BATTLE) {
@@ -158,12 +177,11 @@ function processStateTransition(role) {
             winProb = 100;
         }
 
-        // バトル最終ゲームで判定を行う処理は onAllReelsStopped に記載するが
-        // ここでは成立役による書き換えのみ判定するフラグ管理などが可能。
-        // 簡易化のため、ここでは「レア役を引いたらバトルG数を強制的に終わらせて勝利」にする
+        // レア役を引いたら強制的に勝利扱いにする（簡易処理）
         if (winProb >= 100) {
              logMessage("バトル勝利！！ AT継続");
              showCutin("win");
+             // 以前が神堕だったかどうかを記録するフラグ（今回は簡易的にすべて通常のATに戻すか、フラグで分岐する。ここでは通常ATに戻る仕様とするが、完走後は強制的に神堕スタートとなる）
              setTimeout(() => changeState(GAME_STATE.AT), 1500);
         }
     }
@@ -192,7 +210,8 @@ function setMediaForState(state) {
     if (state === GAME_STATE.NORMAL) bgVideo.style.backgroundColor = "#111";
     if (state === GAME_STATE.CZ) bgVideo.style.backgroundColor = "#005";
     if (state === GAME_STATE.AT) bgVideo.style.backgroundColor = "#500";
-    if (state === GAME_STATE.BATTLE) bgVideo.style.backgroundColor = "#500";
+    if (state === GAME_STATE.KAMIOCHI) bgVideo.style.backgroundColor = "#ffd700"; // 神堕は黄金色
+    if (state === GAME_STATE.BATTLE) bgVideo.style.backgroundColor = "#300";
 }
 
 function showCutin(type) {
@@ -208,7 +227,17 @@ function showCutin(type) {
 
 // --- リール・操作制御 ---
 function onLeverOn() {
-    if (isReelSpinning) return;
+    if (isReelSpinning || isComplete) return;
+
+    // メダル投入処理 (1プレイ3枚掛け)
+    if (credit < 3) {
+        credit = 50; // クレジットが足りない場合はオートチャージ
+    }
+    credit -= 3;
+    totalDiff -= 3;
+
+    payDisplay.innerText = "0"; // 払い出し表示リセット
+    updateSegmentDisplay();
 
     // 抽選
     currentRole = lottery();
@@ -256,10 +285,48 @@ function onAllReelsStopped() {
     isReelSpinning = false;
     btnLever.disabled = false;
 
-    logMessage(`全リール停止: 払い出し等の処理`);
+    // 払い出し処理
+    let payout = 0;
+    if (currentRole === SYMBOLS.BELL) payout = 10; // ベルは10枚
+    else if (currentRole === SYMBOLS.CHERRY) payout = 2; // チェリーは2枚
+    else if (currentRole === SYMBOLS.WATERMELON) payout = 5; // スイカは5枚
+    else if (currentRole === SYMBOLS.RARE) payout = 10;
+    else if (currentRole === SYMBOLS.REPLAY) {
+        credit += 3; // リプレイは3枚返却 (実質減らない)
+        totalDiff += 3;
+    }
+
+    if (payout > 0) {
+        credit += payout;
+        totalDiff += payout;
+        payDisplay.innerText = payout;
+    }
+
+    updateSegmentDisplay();
+
+    // コンプリート機能判定
+    if (totalDiff >= COMPLETE_DIFF) {
+        isComplete = true;
+        logMessage("コンプリート機能発動！！ 稼働停止");
+        changeState(GAME_STATE.NORMAL);
+        btnLever.disabled = true;
+        updateDisplay();
+        return;
+    }
+
+    // 有利区間完走判定
+    if (totalDiff >= ENDING_DIFF && (currentState === GAME_STATE.AT || currentState === GAME_STATE.KAMIOCHI)) {
+        logMessage(`エンディング到達 (+${totalDiff}枚) -> ツラヌキ(神堕)へ！`);
+        totalDiff = 0; // 差枚数リセット（有利区間リセット）
+        showCutin("win");
+        setTimeout(() => changeState(GAME_STATE.KAMIOCHI), 2000);
+        return;
+    }
+
+    logMessage(`全リール停止: [${currentRole}]`);
 
     // ゲーム数減算など
-    if (currentState === GAME_STATE.AT) {
+    if (currentState === GAME_STATE.AT || currentState === GAME_STATE.KAMIOCHI) {
         atGamesLeft--;
         if (atGamesLeft <= 0) {
             logMessage("AT終了 -> バトルへ");
@@ -294,33 +361,68 @@ function onAllReelsStopped() {
 }
 
 // --- ユーティリティ ---
+function updateSegmentDisplay() {
+    creditDisplay.innerText = credit;
+    diffDisplay.innerText = totalDiff;
+
+    if (isComplete) {
+        lampComplete.classList.add("active-complete");
+    } else {
+        lampComplete.classList.remove("active-complete");
+    }
+}
+
 function changeState(newState) {
     currentState = newState;
     setMediaForState(newState);
 
-    if (newState === GAME_STATE.AT) atGamesLeft = CONFIG.system.at_initial_games;
+    if (newState === GAME_STATE.AT) {
+        atGamesLeft = CONFIG.system.at_initial_games;
+        lampAt.classList.add("active-at");
+    }
+    else if (newState === GAME_STATE.KAMIOCHI) {
+        atGamesLeft = CONFIG.system.at_initial_games * 2; // 神堕はATゲーム数が初期から多い等の恩恵
+        lampAt.classList.add("active-at");
+    }
+    else if (newState === GAME_STATE.NORMAL || newState === GAME_STATE.CZ) {
+        lampAt.classList.remove("active-at");
+    }
+
     if (newState === GAME_STATE.CZ) czGamesLeft = CONFIG.system.cz_games;
     if (newState === GAME_STATE.BATTLE) battleGamesLeft = CONFIG.system.battle_games;
+
+    updateDisplay();
 }
 
 function updateDisplay() {
     let stateText = currentState;
     let gamesText = "G: --";
 
+    stateDisplay.className = ""; // クラスリセット
+    gamesDisplay.className = "";
+
     switch(currentState) {
         case GAME_STATE.NORMAL:
-            stateDisplay.style.color = "#aaa";
+            stateDisplay.classList.add("neon-text-green");
             stateText = "通常";
             break;
         case GAME_STATE.CZ:
-            stateDisplay.style.color = "#00ffff";
+            stateDisplay.classList.add("neon-text-yellow");
             stateText = "CZ中";
             gamesText = `残り: ${czGamesLeft} G`;
+            gamesDisplay.classList.add("neon-text-yellow");
             break;
         case GAME_STATE.AT:
-            stateDisplay.style.color = "#ff00ff";
+            stateDisplay.classList.add("neon-text-red");
             stateText = "AT中!!";
             gamesText = `残り: ${atGamesLeft} G`;
+            gamesDisplay.classList.add("neon-text-red");
+            break;
+        case GAME_STATE.KAMIOCHI:
+            stateDisplay.classList.add("neon-text-rainbow");
+            stateText = "神堕 !!";
+            gamesText = `残り: ${atGamesLeft} G`;
+            gamesDisplay.classList.add("neon-text-rainbow");
             break;
         case GAME_STATE.BATTLE:
             stateDisplay.style.color = "#ff0000";
