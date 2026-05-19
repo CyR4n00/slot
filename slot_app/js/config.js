@@ -53,6 +53,8 @@ const CONFIG = {
     at_initial_games: 50, // AT初期ゲーム数
     cz_games: 15,         // CZ継続ゲーム数
     battle_games: 5,      // バトル継続ゲーム数
+    addon_games: 10,      // 上乗せ特化ゾーン継続ゲーム数
+    challenge_games: 10,  // 上位AT挑戦継続ゲーム数
   }
 };
 

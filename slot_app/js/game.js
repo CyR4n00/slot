@@ -7,8 +7,12 @@ const GAME_STATE = {
     CZ: "CZ",
     AT: "AT",
     BATTLE: "BATTLE",
-    SUPER_AT: "SUPER_AT", // 上位AT
-    KAMIOCHI: "KAMIOCHI" // プレミアム上位AT「神堕」
+    SUPER_AT: "SUPER_AT", // 上位AT (generic or specific)
+    SUPER_AT_HANNIBAL: "SUPER_AT_HANNIBAL", // 上位AT: 逆襲のハンニバル
+    SUPER_AT_ARIMA: "SUPER_AT_ARIMA", // 上位AT: 有馬ジャッジメント
+    KAMIOCHI: "KAMIOCHI", // プレミアム上位AT「神堕」
+    ADDON_ZONE: "ADDON_ZONE", // 上乗せ特化ゾーン (Overkill)
+    UPPER_CHALLENGE: "UPPER_CHALLENGE" // 上位AT挑戦
 };
 
 const SYMBOLS = {
@@ -25,6 +29,10 @@ let currentState = GAME_STATE.NORMAL;
 let atGamesLeft = 0;
 let czGamesLeft = 0;
 let battleGamesLeft = 0;
+let addonGamesLeft = 0; // 上乗せ特化ゾーン残りG数
+let challengeGamesLeft = 0; // 上位AT挑戦残りG数
+let overkillPendingGames = 0; // CZやバトル勝利時の余剰ゲーム数などを加算する
+let hasChallengedUpperAt = false; // 1000枚突破で一度だけ挑戦するためのフラグ
 let isReelSpinning = false;
 let spinningReels = []; // [left, center, right] (true=spinning)
 let currentRole = SYMBOLS.BLANK;
@@ -128,73 +136,111 @@ function lottery() {
 
 // --- 状態遷移ロジック ---
 function processStateTransition(role) {
-    // レア役かどうかの判定
-    const isRare = (role === SYMBOLS.CHERRY || role === SYMBOLS.WATERMELON || role === SYMBOLS.RARE);
-
-    if (isRare) {
-        logMessage(`レア役成立！(${role}) 抽選開始...`);
-        showCutin("rare");
-    }
+    const isRare = (role === SYMBOLS.RARE || role === SYMBOLS.CHERRY || role === SYMBOLS.WATERMELON);
 
     if (currentState === GAME_STATE.NORMAL) {
-        // 通常時: レア役でCZまたはAT直撃抽選
         if (isRare) {
-            const rand = Math.random() * 100; // 0〜100%
-            const directAtProb = getProbability("at_direct_from_rare");
-            const czProb = getProbability("cz_entry_from_rare");
+            const atProb = getProbability("at_direct_from_rare");
+            if (Math.random() * 100 < atProb) {
+                logMessage("通常時からAT直撃！ => 上乗せ特化ゾーンへ");
+                showCutin("win");
+                setTimeout(() => changeState(GAME_STATE.ADDON_ZONE), 1500);
+                return;
+            }
 
-            if (rand < directAtProb) {
-                // AT直撃
-                logMessage("!!! AT直撃当選 !!!");
-                setTimeout(() => changeState(GAME_STATE.AT), 1000); // すぐに移行せず少し間を置く
-            } else if (rand < directAtProb + czProb) {
-                // CZ当選
+            const czProb = getProbability("cz_entry_from_rare");
+            if (Math.random() * 100 < czProb) {
                 logMessage("CZ当選！");
-                setTimeout(() => changeState(GAME_STATE.CZ), 1000);
+                showCutin("rare");
+                setTimeout(() => changeState(GAME_STATE.CZ), 1500);
+            } else {
+                showCutin("rare");
             }
         }
     }
     else if (currentState === GAME_STATE.CZ) {
-        // CZ中: 毎ゲームAT抽選 (レア役は確定レベル、通常小役でもチャンス)
-        let hitProb = getProbability("at_entry_in_cz");
-        if (isRare) hitProb = 100; // レア役はAT確定(ゴッドイーターの神機解放風)
-        else if (role === SYMBOLS.REPLAY || role === SYMBOLS.BELL) hitProb *= 1.5; // 小役でチャンスアップ
+        let winProb = getProbability("at_entry_in_cz");
+        if (isRare) winProb += 50;
 
-        const rand = Math.random() * 100;
-        if (rand < hitProb) {
-            logMessage("CZ成功！ AT突入！！");
+        if (Math.random() * 100 < winProb) {
+            logMessage("CZ成功！ AT確定 => 上乗せ特化ゾーンへ");
             showCutin("win");
-            setTimeout(() => changeState(GAME_STATE.AT), 1000);
+            // CZの残りゲーム数をoverkillとしてATのゲーム数などに還元する仕様も可能
+            if (czGamesLeft > 0) {
+                logMessage(`Overkill! CZ残り${czGamesLeft}Gを特化ゾーンのG数に上乗せ！`);
+                overkillPendingGames = czGamesLeft;
+            }
+            setTimeout(() => {
+                changeState(GAME_STATE.ADDON_ZONE);
+                addonGamesLeft += overkillPendingGames;
+                overkillPendingGames = 0;
+            }, 1500);
+        } else if (isRare) {
+            showCutin("rare");
         }
     }
-    else if (currentState === GAME_STATE.AT || currentState === GAME_STATE.SUPER_AT || currentState === GAME_STATE.KAMIOCHI) {
-        // AT中 / 上位AT中 / 神堕中: レア役でゲーム数上乗せ
+    else if (currentState === GAME_STATE.AT || currentState === GAME_STATE.SUPER_AT || currentState === GAME_STATE.SUPER_AT_HANNIBAL || currentState === GAME_STATE.SUPER_AT_ARIMA || currentState === GAME_STATE.KAMIOCHI) {
         if (isRare) {
-            let addGames = 10;
-            if (currentState === GAME_STATE.SUPER_AT) {
-                 addGames = 20; // 上位ATは性能アップ
-            } else if (currentState === GAME_STATE.KAMIOCHI) {
-                 addGames = 30; // 神堕はさらに上乗せ性能が大幅アップ
-            }
+            const addGames = (role === SYMBOLS.RARE) ? 30 : 10;
             logMessage(`AT中レア役！ ${addGames}G 上乗せ！`);
             showCutin("rare");
             atGamesLeft += addGames;
         }
+
+        // 1000枚突破で上位AT挑戦機能 (1回のみ)
+        if (totalDiff >= 1000 && !hasChallengedUpperAt && (currentState === GAME_STATE.AT)) {
+            logMessage("1000枚突破！ 上位ATへの挑戦権獲得！");
+            hasChallengedUpperAt = true;
+            setTimeout(() => changeState(GAME_STATE.UPPER_CHALLENGE), 1500);
+        }
     }
     else if (currentState === GAME_STATE.BATTLE) {
-        // バトル中: 継続ジャッジ。レア役で勝利書き換え
         let winProb = getProbability("battle_win_rate");
         if (isRare) {
             logMessage("バトル中レア役！ 勝利確定！");
             winProb = 100;
         }
 
-        // レア役を引いたら強制的に勝利扱いにする（簡易処理）
         if (winProb >= 100) {
-             logMessage("バトル勝利！！ AT継続");
+             logMessage("バトル勝利！！ 特化ゾーンを経由してATへ");
              showCutin("win");
-             // 以前が神堕だったかどうかを記録するフラグ（今回は簡易的にすべて通常のATに戻すか、フラグで分岐する。ここでは通常ATに戻る仕様とするが、完走後は強制的に神堕スタートとなる）
-             setTimeout(() => changeState(GAME_STATE.AT), 1500);
+             if (battleGamesLeft > 1) {
+                 logMessage(`Overkill! バトル残り${battleGamesLeft - 1}Gを特化ゾーンのG数に上乗せ！`);
+                 overkillPendingGames = battleGamesLeft - 1;
+             }
+             setTimeout(() => {
+                 changeState(GAME_STATE.ADDON_ZONE);
+                 addonGamesLeft += overkillPendingGames;
+                 overkillPendingGames = 0;
+             }, 1500);
+        }
+    }
+    else if (currentState === GAME_STATE.ADDON_ZONE) {
+        // 特化ゾーン中の上乗せ抽選
+        let addGames = 0;
+        if (role === SYMBOLS.BELL) addGames = 5;
+        else if (isRare) addGames = (role === SYMBOLS.RARE) ? 50 : 20;
+
+        if (addGames > 0) {
+            logMessage(`特化ゾーン: ${addGames}G 上乗せ！`);
+            atGamesLeft += addGames; // 事前にATゲーム数に足しておく
+            showCutin("rare");
+        }
+    }
+    else if (currentState === GAME_STATE.UPPER_CHALLENGE) {
+        // 上位AT挑戦中の抽選 (レア役で成功など)
+        if (isRare) {
+            logMessage("上位AT挑戦成功！！");
+            showCutin("win");
+
+            // どちらの上位ATに行くかランダム（ハンニバル or 有馬）
+            setTimeout(() => {
+                const nextAt = (Math.random() < 0.5) ? GAME_STATE.SUPER_AT_HANNIBAL : GAME_STATE.SUPER_AT_ARIMA;
+                changeState(nextAt);
+            }, 1500);
+
+            // 成功した場合は挑戦ゲーム数を0にして終了を早める
+            challengeGamesLeft = 0;
         }
     }
 }
@@ -207,24 +253,26 @@ function setMediaForState(state) {
         case GAME_STATE.CZ: videoSrc = CONFIG.media.background_cz; break;
         case GAME_STATE.AT: videoSrc = CONFIG.media.background_at; break;
         case GAME_STATE.BATTLE: videoSrc = CONFIG.media.background_battle; break;
+        // 特化ゾーンや上位ATなどに専用背景があればここに追加可能
     }
 
     // 素材が設定されている場合はvideoタグのソースを更新
     if (videoSrc) {
-        // 現在のsrcと異なる場合のみ更新
         if (!bgVideo.src.endsWith(videoSrc)) {
             bgVideo.src = videoSrc;
-            bgVideo.play().catch(e => console.log("Video play was prevented (expected if no file exists yet)"));
+            bgVideo.play().catch(e => console.log("Video play was prevented"));
         }
     }
 
-    // 素材がない場合でも視覚的に分かるように背景色を変更（プレースホルダー用）
+    // 視覚的に分かるように背景色を変更
     if (state === GAME_STATE.NORMAL) bgVideo.style.backgroundColor = "#111";
     if (state === GAME_STATE.CZ) bgVideo.style.backgroundColor = "#005";
     if (state === GAME_STATE.AT) bgVideo.style.backgroundColor = "#500";
-    if (state === GAME_STATE.SUPER_AT) bgVideo.style.backgroundColor = "#800080"; // 上位ATは紫色
-    if (state === GAME_STATE.KAMIOCHI) bgVideo.style.backgroundColor = "#ffd700"; // 神堕は黄金色
+    if (state === GAME_STATE.SUPER_AT || state === GAME_STATE.SUPER_AT_HANNIBAL || state === GAME_STATE.SUPER_AT_ARIMA) bgVideo.style.backgroundColor = "#800080";
+    if (state === GAME_STATE.KAMIOCHI) bgVideo.style.backgroundColor = "#ffd700";
     if (state === GAME_STATE.BATTLE) bgVideo.style.backgroundColor = "#300";
+    if (state === GAME_STATE.ADDON_ZONE) bgVideo.style.backgroundColor = "#008080"; // 特化ゾーン
+    if (state === GAME_STATE.UPPER_CHALLENGE) bgVideo.style.backgroundColor = "#b22222"; // 挑戦
 }
 
 function showCutin(type) {
@@ -317,17 +365,15 @@ function onStop(reelIndex) {
 function onAllReelsStopped() {
     isReelSpinning = false;
 
-    // 次のゲームのための状態にリセット
-    btnMaxBet.disabled = false; // 再びBET可能に
+    btnMaxBet.disabled = false;
 
-    // 払い出し処理
     let payout = 0;
-    if (currentRole === SYMBOLS.BELL) payout = 10; // ベルは10枚
-    else if (currentRole === SYMBOLS.CHERRY) payout = 2; // チェリーは2枚
-    else if (currentRole === SYMBOLS.WATERMELON) payout = 5; // スイカは5枚
+    if (currentRole === SYMBOLS.BELL) payout = 10;
+    else if (currentRole === SYMBOLS.CHERRY) payout = 2;
+    else if (currentRole === SYMBOLS.WATERMELON) payout = 5;
     else if (currentRole === SYMBOLS.RARE) payout = 10;
     else if (currentRole === SYMBOLS.REPLAY) {
-        credit += 3; // リプレイは3枚返却 (実質減らない)
+        credit += 3;
         totalDiff += 3;
     }
 
@@ -339,7 +385,6 @@ function onAllReelsStopped() {
 
     updateSegmentDisplay();
 
-    // コンプリート機能判定
     if (totalDiff >= COMPLETE_DIFF) {
         isComplete = true;
         logMessage("コンプリート機能発動！！ 稼働停止");
@@ -349,11 +394,9 @@ function onAllReelsStopped() {
         return;
     }
 
-    // 有利区間完走判定
-    if (totalDiff >= ENDING_DIFF && (currentState === GAME_STATE.AT || currentState === GAME_STATE.SUPER_AT || currentState === GAME_STATE.KAMIOCHI)) {
-        totalDiff = 0; // 差枚数リセット（有利区間リセット）
+    if (totalDiff >= ENDING_DIFF && (currentState === GAME_STATE.AT || currentState === GAME_STATE.SUPER_AT || currentState === GAME_STATE.SUPER_AT_HANNIBAL || currentState === GAME_STATE.SUPER_AT_ARIMA || currentState === GAME_STATE.KAMIOCHI)) {
+        totalDiff = 0;
 
-        // ツラヌキ恩恵は 50% で神堕、50% で上位AT
         if (Math.random() < 0.5) {
             logMessage(`エンディング到達！ 50%を射止めて「神堕」へ！！`);
             showCutin("win");
@@ -361,15 +404,14 @@ function onAllReelsStopped() {
         } else {
             logMessage(`エンディング到達！ 「上位AT」へ！`);
             showCutin("win");
-            setTimeout(() => changeState(GAME_STATE.SUPER_AT), 2000);
+            setTimeout(() => changeState(GAME_STATE.SUPER_AT_HANNIBAL), 2000);
         }
         return;
     }
 
     logMessage(`全リール停止: [${currentRole}]`);
 
-    // ゲーム数減算など
-    if (currentState === GAME_STATE.AT || currentState === GAME_STATE.SUPER_AT || currentState === GAME_STATE.KAMIOCHI) {
+    if (currentState === GAME_STATE.AT || currentState === GAME_STATE.SUPER_AT || currentState === GAME_STATE.SUPER_AT_HANNIBAL || currentState === GAME_STATE.SUPER_AT_ARIMA || currentState === GAME_STATE.KAMIOCHI) {
         atGamesLeft--;
         if (atGamesLeft <= 0) {
             logMessage("AT終了 -> バトルへ");
@@ -384,19 +426,30 @@ function onAllReelsStopped() {
     } else if (currentState === GAME_STATE.BATTLE) {
         battleGamesLeft--;
         if (battleGamesLeft <= 0) {
-             // バトル最終ゲームでの判定
              const winProb = getProbability("battle_win_rate");
              const rand = Math.random() * 100;
              if (rand < winProb) {
-                 logMessage(`バトル勝利！(${winProb}%) -> AT継続`);
+                 logMessage(`バトル勝利！(${winProb}%) -> 特化ゾーンへ`);
                  showCutin("win");
-                 setTimeout(() => changeState(GAME_STATE.AT), 1500);
+                 setTimeout(() => changeState(GAME_STATE.ADDON_ZONE), 1500);
              } else {
-                 // バトル敗北処理
                  logMessage("バトル敗北 -> 通常へ");
                  showCutin("lose");
                  changeState(GAME_STATE.NORMAL);
              }
+        }
+    } else if (currentState === GAME_STATE.ADDON_ZONE) {
+        addonGamesLeft--;
+        if (addonGamesLeft <= 0) {
+            logMessage("特化ゾーン終了 -> ATへ");
+            // すでにatGamesLeftに上乗せ分は加算されているので、状態をATに戻すだけ
+            changeState(GAME_STATE.AT);
+        }
+    } else if (currentState === GAME_STATE.UPPER_CHALLENGE) {
+        if (challengeGamesLeft > 0) challengeGamesLeft--;
+        if (challengeGamesLeft <= 0) {
+            logMessage("上位AT挑戦終了 -> 通常ATへ復帰");
+            changeState(GAME_STATE.AT);
         }
     }
 
@@ -420,15 +473,17 @@ function changeState(newState) {
     setMediaForState(newState);
 
     if (newState === GAME_STATE.AT) {
-        atGamesLeft = CONFIG.system.at_initial_games;
+        // もし直前に上乗せ特化ゾーンから来たなどでゲーム数がすでにある場合は上書きしないか、加算する
+        // 今回は初期ゲーム数を付与（すでに持っている場合は維持または加算。ここでは初期値セット）
+        if (atGamesLeft <= 0) atGamesLeft = CONFIG.system.at_initial_games;
         lampAt.classList.add("active-at");
     }
-    else if (newState === GAME_STATE.SUPER_AT) {
-        atGamesLeft = CONFIG.system.at_initial_games * 1.5;
+    else if (newState === GAME_STATE.SUPER_AT || newState === GAME_STATE.SUPER_AT_HANNIBAL || newState === GAME_STATE.SUPER_AT_ARIMA) {
+        if (atGamesLeft <= 0) atGamesLeft = CONFIG.system.at_initial_games * 1.5;
         lampAt.classList.add("active-at");
     }
     else if (newState === GAME_STATE.KAMIOCHI) {
-        atGamesLeft = CONFIG.system.at_initial_games * 2; // 神堕はATゲーム数が初期から多い等の恩恵
+        if (atGamesLeft <= 0) atGamesLeft = CONFIG.system.at_initial_games * 2;
         lampAt.classList.add("active-at");
     }
     else if (newState === GAME_STATE.NORMAL || newState === GAME_STATE.CZ) {
@@ -437,6 +492,8 @@ function changeState(newState) {
 
     if (newState === GAME_STATE.CZ) czGamesLeft = CONFIG.system.cz_games;
     if (newState === GAME_STATE.BATTLE) battleGamesLeft = CONFIG.system.battle_games;
+    if (newState === GAME_STATE.ADDON_ZONE) addonGamesLeft = CONFIG.system.addon_games;
+    if (newState === GAME_STATE.UPPER_CHALLENGE) challengeGamesLeft = CONFIG.system.challenge_games;
 
     updateDisplay();
 }
@@ -466,8 +523,12 @@ function updateDisplay() {
             gamesDisplay.classList.add("neon-text-red");
             break;
         case GAME_STATE.SUPER_AT:
+        case GAME_STATE.SUPER_AT_HANNIBAL:
+        case GAME_STATE.SUPER_AT_ARIMA:
             stateDisplay.classList.add("neon-text-purple");
-            stateText = "上位AT!!";
+            if (currentState === GAME_STATE.SUPER_AT_HANNIBAL) stateText = "上位AT (逆襲のハンニバル)";
+            else if (currentState === GAME_STATE.SUPER_AT_ARIMA) stateText = "上位AT (有馬ジャッジメント)";
+            else stateText = "上位AT!!";
             gamesText = `残り: ${atGamesLeft} G`;
             gamesDisplay.classList.add("neon-text-purple");
             break;
@@ -481,6 +542,18 @@ function updateDisplay() {
             stateDisplay.style.color = "#ff0000";
             stateText = "継続バトル!!";
             gamesText = `残り: ${battleGamesLeft} G`;
+            break;
+        case GAME_STATE.ADDON_ZONE:
+            stateDisplay.classList.add("neon-text-rainbow");
+            stateText = "上乗せ特化ゾーン!";
+            gamesText = `残り: ${addonGamesLeft} G`;
+            gamesDisplay.classList.add("neon-text-rainbow");
+            break;
+        case GAME_STATE.UPPER_CHALLENGE:
+            stateDisplay.classList.add("neon-text-purple");
+            stateText = "上位AT挑戦中!";
+            gamesText = `残り: ${challengeGamesLeft} G`;
+            gamesDisplay.classList.add("neon-text-purple");
             break;
     }
 

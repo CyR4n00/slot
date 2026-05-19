@@ -27,3 +27,4 @@ Hit CTRL-C to stop the server
 [2026-05-19T02:49:59.463Z]  "GET /assets/videos/normal_bg.mp4" Error (404): "Not found"
 [2026-05-19T02:50:06.129Z]  "GET /assets/videos/battle_bg.mp4" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36"
 [2026-05-19T02:50:06.132Z]  "GET /assets/videos/battle_bg.mp4" Error (404): "Not found"
+http-server stopped.
