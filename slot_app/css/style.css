@@ -268,30 +268,39 @@ body {
 
 .controls-container {
     display: flex;
-    gap: 30px;
-    align-items: center;
+    gap: 20px;
+    align-items: flex-end;
     width: 100%;
-    justify-content: center;
-    padding: 10px;
-    background: #111;
+    justify-content: space-between;
+    padding: 15px 20px;
+    background: linear-gradient(180deg, #1a1a1a, #050505);
     border-radius: 15px;
-    box-shadow: inset 0 5px 10px rgba(0,0,0,0.8), 0 2px 0 rgba(255,255,255,0.1);
+    box-shadow: inset 0 5px 15px rgba(0,0,0,0.9), 0 2px 0 rgba(255,255,255,0.1);
+    border: 2px solid #333;
+}
+
+.control-group-left, .control-group-center, .control-group-right {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
 }
 
 .btn-action {
-    padding: 15px 10px;
-    font-size: 1.1rem;
-    font-weight: bold;
+    padding: 10px;
+    font-family: 'Arial Black', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 900;
     cursor: pointer;
     border-radius: 50%;
     border: 4px solid #111;
-    background: radial-gradient(circle at 30% 30%, #ff5555, #aa0000);
-    color: white;
-    box-shadow: 0 8px 15px rgba(0,0,0,0.8), inset 0 -5px 10px rgba(0,0,0,0.5), inset 0 5px 10px rgba(255,255,255,0.5);
+    color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 8px 15px rgba(0,0,0,0.8), inset 0 -5px 10px rgba(0,0,0,0.5), inset 0 5px 10px rgba(255,255,255,0.3);
     transition: all 0.1s;
-    width: 90px;
-    height: 90px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     text-shadow: 1px 1px 2px #000;
+    text-align: center;
 }
 
 .btn-action:active:not(:disabled) {
@@ -300,36 +309,63 @@ body {
 }
 
 .btn-action:disabled {
-    background: radial-gradient(circle at 30% 30%, #555, #222);
+    background: radial-gradient(circle at 30% 30%, #444, #222);
     cursor: not-allowed;
     transform: none;
     box-shadow: 0 4px 5px rgba(0,0,0,0.8), inset 0 -2px 5px rgba(0,0,0,0.5);
-    color: #888;
+    color: #666;
+    border-color: #222;
 }
 
-#btn-lever {
-    background: radial-gradient(circle at 30% 30%, #ff3333, #880000);
-    width: 110px;
-    height: 110px;
-    font-size: 1.2rem;
-    border: 5px solid #220000;
+.btn-bet {
+    background: radial-gradient(circle at 30% 30%, #33cc33, #006600);
+    width: 75px;
+    height: 75px;
+    font-size: 0.8rem;
+    border-color: #002200;
 }
-#btn-lever:active:not(:disabled) {
-    background: radial-gradient(circle at 30% 30%, #ff5555, #aa0000);
+
+.btn-lever {
+    background: radial-gradient(circle at 30% 30%, #ff3333, #aa0000);
+    width: 85px;
+    height: 85px;
+    font-size: 1rem;
+    border-color: #330000;
+    box-shadow: 0 8px 15px rgba(255,0,0,0.2), inset 0 -5px 10px rgba(0,0,0,0.5), inset 0 5px 10px rgba(255,255,255,0.4);
+}
+.btn-lever:active:not(:disabled) {
+    background: radial-gradient(circle at 30% 30%, #ff5555, #cc0000);
     box-shadow: 0 0 20px #ff0000;
 }
 
 .stop-buttons {
     display: flex;
-    gap: 20px;
+    gap: 15px;
 }
 
 .btn-stop {
-    background: radial-gradient(circle at 30% 30%, #33aaff, #003388);
-    width: 85px;
-    height: 85px;
-    font-size: 1.2rem;
-    border: 4px solid #001133;
+    background: radial-gradient(circle at 30% 30%, #00aaff, #004488);
+    width: 80px;
+    height: 80px;
+    font-size: 1.1rem;
+    border-color: #001133;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.btn-push {
+    background: radial-gradient(circle at 30% 30%, #ff00ff, #880088);
+    width: 95px;
+    height: 95px;
+    font-size: 1.3rem;
+    border-color: #330033;
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(255,0,255,0.3), inset 0 -5px 10px rgba(0,0,0,0.5), inset 0 5px 15px rgba(255,255,255,0.5);
+    animation: push-glow 2s infinite alternate;
+}
+
+@keyframes push-glow {
+    0% { box-shadow: 0 5px 15px rgba(255,0,255,0.3), inset 0 -5px 10px rgba(0,0,0,0.5); }
+    100% { box-shadow: 0 5px 25px rgba(255,0,255,0.8), inset 0 -5px 10px rgba(0,0,0,0.5); }
 }
 
 .machine-bottom {

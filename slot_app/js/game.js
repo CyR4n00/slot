@@ -7,7 +7,8 @@ const GAME_STATE = {
     CZ: "CZ",
     AT: "AT",
     BATTLE: "BATTLE",
-    KAMIOCHI: "KAMIOCHI" // 上位AT「神堕」
+    SUPER_AT: "SUPER_AT", // 上位AT
+    KAMIOCHI: "KAMIOCHI" // プレミアム上位AT「神堕」
 };
 
 const SYMBOLS = {
@@ -30,6 +31,7 @@ let currentRole = SYMBOLS.BLANK;
 
 // クレジット・差枚数管理 (スマスロ機能)
 let credit = 50;
+let betAmount = 0; // 現在のベット数
 let totalDiff = 0; // 差枚数 (有利区間管理)
 let isComplete = false; // コンプリート機能発動フラグ
 
@@ -39,6 +41,8 @@ const COMPLETE_DIFF = 19000; // コンプリート機能発動ライン
 
 // DOMエレメント
 const btnLever = document.getElementById("btn-lever");
+const btnMaxBet = document.getElementById("btn-maxbet");
+const btnPush = document.getElementById("btn-push");
 const btnStops = [
     document.getElementById("btn-stop-left"),
     document.getElementById("btn-stop-center"),
@@ -72,6 +76,8 @@ function init() {
 
     // イベントリスナー
     btnLever.addEventListener("click", onLeverOn);
+    btnMaxBet.addEventListener("click", onMaxBet);
+    btnPush.addEventListener("click", onPush);
     btnStops.forEach((btn, index) => {
         btn.addEventListener("click", () => onStop(index));
     });
@@ -87,6 +93,10 @@ function init() {
         if (e.code === "Space" && !btnLever.disabled) {
             e.preventDefault();
             btnLever.click();
+        }
+        if (e.code === "ArrowUp" && !btnMaxBet.disabled) {
+            e.preventDefault();
+            btnMaxBet.click();
         }
         if (e.code === "KeyZ" && !btnStops[0].disabled) btnStops[0].click();
         if (e.code === "KeyX" && !btnStops[1].disabled) btnStops[1].click();
@@ -157,12 +167,14 @@ function processStateTransition(role) {
             setTimeout(() => changeState(GAME_STATE.AT), 1000);
         }
     }
-    else if (currentState === GAME_STATE.AT || currentState === GAME_STATE.KAMIOCHI) {
-        // AT中 / 神堕中: レア役でゲーム数上乗せ
+    else if (currentState === GAME_STATE.AT || currentState === GAME_STATE.SUPER_AT || currentState === GAME_STATE.KAMIOCHI) {
+        // AT中 / 上位AT中 / 神堕中: レア役でゲーム数上乗せ
         if (isRare) {
             let addGames = 10;
-            if (currentState === GAME_STATE.KAMIOCHI) {
-                 addGames = 30; // 上位AT「神堕」なら上乗せ性能が大幅アップ
+            if (currentState === GAME_STATE.SUPER_AT) {
+                 addGames = 20; // 上位ATは性能アップ
+            } else if (currentState === GAME_STATE.KAMIOCHI) {
+                 addGames = 30; // 神堕はさらに上乗せ性能が大幅アップ
             }
             logMessage(`AT中レア役！ ${addGames}G 上乗せ！`);
             showCutin("rare");
@@ -210,6 +222,7 @@ function setMediaForState(state) {
     if (state === GAME_STATE.NORMAL) bgVideo.style.backgroundColor = "#111";
     if (state === GAME_STATE.CZ) bgVideo.style.backgroundColor = "#005";
     if (state === GAME_STATE.AT) bgVideo.style.backgroundColor = "#500";
+    if (state === GAME_STATE.SUPER_AT) bgVideo.style.backgroundColor = "#800080"; // 上位ATは紫色
     if (state === GAME_STATE.KAMIOCHI) bgVideo.style.backgroundColor = "#ffd700"; // 神堕は黄金色
     if (state === GAME_STATE.BATTLE) bgVideo.style.backgroundColor = "#300";
 }
@@ -226,18 +239,35 @@ function showCutin(type) {
 }
 
 // --- リール・操作制御 ---
-function onLeverOn() {
-    if (isReelSpinning || isComplete) return;
+function onMaxBet() {
+    if (isReelSpinning || isComplete || betAmount === 3) return;
 
-    // メダル投入処理 (1プレイ3枚掛け)
     if (credit < 3) {
-        credit = 50; // クレジットが足りない場合はオートチャージ
+        credit += 50; // クレジットが足りない場合はオートチャージ
     }
-    credit -= 3;
-    totalDiff -= 3;
 
-    payDisplay.innerText = "0"; // 払い出し表示リセット
+    // 3枚BET
+    let betDiff = 3 - betAmount;
+    credit -= betDiff;
+    totalDiff -= betDiff;
+    betAmount = 3;
+
+    payDisplay.innerText = "0";
+    btnMaxBet.disabled = true;
+    btnLever.disabled = false; // ベット完了でレバーON可能になる
+
     updateSegmentDisplay();
+    logMessage("MAX BET完了 (3枚)");
+}
+
+function onPush() {
+    // PUSHボタンが押された時の演出用（現状はダミーログとアニメーション効果）
+    logMessage("PUSHボタン押下！");
+    // ここにカットインや特殊SEの再生などを後付け可能
+}
+
+function onLeverOn() {
+    if (isReelSpinning || isComplete || betAmount < 3) return;
 
     // 抽選
     currentRole = lottery();
@@ -245,8 +275,11 @@ function onLeverOn() {
 
     // リール回転開始
     isReelSpinning = true;
+    betAmount = 0; // ベット枚数リセット
     spinningReels = [true, true, true];
+
     btnLever.disabled = true;
+    btnMaxBet.disabled = true; // 回転中はBET不可
     btnStops.forEach(btn => btn.disabled = false);
 
     // リールUI更新
@@ -283,7 +316,9 @@ function onStop(reelIndex) {
 
 function onAllReelsStopped() {
     isReelSpinning = false;
-    btnLever.disabled = false;
+
+    // 次のゲームのための状態にリセット
+    btnMaxBet.disabled = false; // 再びBET可能に
 
     // 払い出し処理
     let payout = 0;
@@ -315,18 +350,26 @@ function onAllReelsStopped() {
     }
 
     // 有利区間完走判定
-    if (totalDiff >= ENDING_DIFF && (currentState === GAME_STATE.AT || currentState === GAME_STATE.KAMIOCHI)) {
-        logMessage(`エンディング到達 (+${totalDiff}枚) -> ツラヌキ(神堕)へ！`);
+    if (totalDiff >= ENDING_DIFF && (currentState === GAME_STATE.AT || currentState === GAME_STATE.SUPER_AT || currentState === GAME_STATE.KAMIOCHI)) {
         totalDiff = 0; // 差枚数リセット（有利区間リセット）
-        showCutin("win");
-        setTimeout(() => changeState(GAME_STATE.KAMIOCHI), 2000);
+
+        // ツラヌキ恩恵は 50% で神堕、50% で上位AT
+        if (Math.random() < 0.5) {
+            logMessage(`エンディング到達！ 50%を射止めて「神堕」へ！！`);
+            showCutin("win");
+            setTimeout(() => changeState(GAME_STATE.KAMIOCHI), 2000);
+        } else {
+            logMessage(`エンディング到達！ 「上位AT」へ！`);
+            showCutin("win");
+            setTimeout(() => changeState(GAME_STATE.SUPER_AT), 2000);
+        }
         return;
     }
 
     logMessage(`全リール停止: [${currentRole}]`);
 
     // ゲーム数減算など
-    if (currentState === GAME_STATE.AT || currentState === GAME_STATE.KAMIOCHI) {
+    if (currentState === GAME_STATE.AT || currentState === GAME_STATE.SUPER_AT || currentState === GAME_STATE.KAMIOCHI) {
         atGamesLeft--;
         if (atGamesLeft <= 0) {
             logMessage("AT終了 -> バトルへ");
@@ -380,6 +423,10 @@ function changeState(newState) {
         atGamesLeft = CONFIG.system.at_initial_games;
         lampAt.classList.add("active-at");
     }
+    else if (newState === GAME_STATE.SUPER_AT) {
+        atGamesLeft = CONFIG.system.at_initial_games * 1.5;
+        lampAt.classList.add("active-at");
+    }
     else if (newState === GAME_STATE.KAMIOCHI) {
         atGamesLeft = CONFIG.system.at_initial_games * 2; // 神堕はATゲーム数が初期から多い等の恩恵
         lampAt.classList.add("active-at");
@@ -417,6 +464,12 @@ function updateDisplay() {
             stateText = "AT中!!";
             gamesText = `残り: ${atGamesLeft} G`;
             gamesDisplay.classList.add("neon-text-red");
+            break;
+        case GAME_STATE.SUPER_AT:
+            stateDisplay.classList.add("neon-text-purple");
+            stateText = "上位AT!!";
+            gamesText = `残り: ${atGamesLeft} G`;
+            gamesDisplay.classList.add("neon-text-purple");
             break;
         case GAME_STATE.KAMIOCHI:
             stateDisplay.classList.add("neon-text-rainbow");
