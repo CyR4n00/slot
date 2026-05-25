@@ -15,6 +15,12 @@ const GAME_STATE = {
     KAMIOCHI: "KAMIOCHI", // 神堕 (プレミアムAT)
 };
 
+const NORMAL_STAGE = {
+    BASE: "BASE",
+    HIGH: "HIGH",
+    ULTRA: "ULTRA", // 前兆
+};
+
 const SYMBOLS = {
     BLANK: "ハズレ",
     BELL: "ベル",
@@ -27,6 +33,7 @@ const SYMBOLS = {
 // --- グローバル変数 ---
 let currentState = GAME_STATE.NORMAL;
 let normalGames = 0; // 通常時消化ゲーム数 (天井管理)
+let currentNormalStage = NORMAL_STAGE.BASE;
 let czGamesLeft = 0;
 let atStoryMedalsLeft = 0; // ストーリーパート残り枚数 (差枚数管理)
 let atStGamesLeft = 0; // アラガミ交戦 (ST) 残りゲーム数
@@ -72,6 +79,8 @@ const lampComplete = document.getElementById("lamp-complete");
 const bgVideo = document.getElementById("bg-video");
 const cutinLayer = document.getElementById("cutin-layer");
 const cutinImage = document.getElementById("cutin-image");
+const eventVideoLayer = document.getElementById("event-video-layer");
+const eventVideo = document.getElementById("event-video");
 
 // シンボル表示用 (簡易)
 const reelElements = [
@@ -141,6 +150,28 @@ function lottery() {
 function processStateTransition(role) {
     if (currentState === GAME_STATE.NORMAL) {
         normalGames++;
+
+        // ステージ移行抽選 (ゲーム数やレア役で移行)
+        if (normalGames % 100 === 0) {
+            // ゾーン到達で前兆(ULTRA)へ
+            currentNormalStage = NORMAL_STAGE.ULTRA;
+            logMessage(`${normalGames}G ゾーン到達！ 前兆ステージへ移行`);
+            updateDisplay(); // update visuals immediately
+        } else if (role === SYMBOLS.RARE || role === SYMBOLS.CHERRY || role === SYMBOLS.WATERMELON) {
+            // レア役で高確(HIGH)へ
+            if (currentNormalStage !== NORMAL_STAGE.ULTRA) {
+                currentNormalStage = NORMAL_STAGE.HIGH;
+                logMessage("レア役成立！ 高確ステージへ移行");
+                playEventVideo("rare", 1500);
+                setMediaForState(currentState);
+                updateDisplay();
+            }
+        } else if (currentNormalStage !== NORMAL_STAGE.BASE && Math.random() < 0.05) {
+            // 毎ゲーム5%で通常ステージに転落
+            currentNormalStage = NORMAL_STAGE.BASE;
+            setMediaForState(currentState);
+            updateDisplay();
+        }
         // 天井 (1000G)
         if (normalGames >= 1000) {
             logMessage("天井到達 (1000G) -> アラガミバースト(AT)へ");
@@ -174,6 +205,7 @@ function processStateTransition(role) {
         if (Math.random() * 100 < actualProb) {
             logMessage("CZ成功！ アラガミバースト(AT)へ！");
             showCutin("win");
+            playEventVideo("win");
             setTimeout(() => triggerAT(), 1500);
         }
     } else if (currentState === GAME_STATE.AT_ST || currentState === GAME_STATE.BLACK_PREDATOR || currentState === GAME_STATE.AT_SUPER_HANNIBAL) {
@@ -193,7 +225,9 @@ function processStateTransition(role) {
                 }
                 previousAtState = currentState; // Remember the AT state
                 showCutin("win");
+            playEventVideo("win");
                 setTimeout(() => changeState(GAME_STATE.DEVOUR), 1500);
+                setTimeout(() => playEventVideo("devour", 3000), 1600);
             } else {
                 logMessage("バトル敗北... ST継続");
             }
@@ -205,20 +239,44 @@ function processStateTransition(role) {
 function setMediaForState(state) {
     let videoSrc = "";
     if (state === GAME_STATE.NORMAL) {
-        bgVideo.style.backgroundColor = "#000";
-        videoSrc = CONFIG.media.background_normal;
+        if (currentNormalStage === NORMAL_STAGE.BASE) {
+            bgVideo.style.backgroundColor = "#000";
+            videoSrc = CONFIG.media.bg_normal_base;
+        } else if (currentNormalStage === NORMAL_STAGE.HIGH) {
+            bgVideo.style.backgroundColor = "#004"; // 青っぽく
+            videoSrc = CONFIG.media.bg_normal_high;
+        } else if (currentNormalStage === NORMAL_STAGE.ULTRA) {
+            bgVideo.style.backgroundColor = "#400"; // 赤っぽく
+            videoSrc = CONFIG.media.bg_normal_ultra;
+        }
     }
-    if (state === GAME_STATE.CZ_DEFENSE || state === GAME_STATE.CZ_EXTERMINATION) {
+    if (state === GAME_STATE.CZ_DEFENSE) {
         bgVideo.style.backgroundColor = "#550";
-        videoSrc = CONFIG.media.background_cz;
+        videoSrc = CONFIG.media.bg_cz_defense;
     }
-    if (state === GAME_STATE.AT_STORY || state === GAME_STATE.DEVOUR) {
+    if (state === GAME_STATE.CZ_EXTERMINATION) {
+        bgVideo.style.backgroundColor = "#630";
+        videoSrc = CONFIG.media.bg_cz_exterminate;
+    }
+    if (state === GAME_STATE.AT_STORY) {
         bgVideo.style.backgroundColor = "#500";
-        videoSrc = CONFIG.media.background_at;
+        videoSrc = CONFIG.media.bg_at_story;
     }
-    if (state === GAME_STATE.AT_ST || state === GAME_STATE.AT_SUPER_HANNIBAL || state === GAME_STATE.BLACK_PREDATOR || state === GAME_STATE.KAMIOCHI) {
+    if (state === GAME_STATE.AT_ST) {
         bgVideo.style.backgroundColor = "#800";
-        videoSrc = CONFIG.media.background_battle;
+        videoSrc = CONFIG.media.bg_at_st;
+    }
+    if (state === GAME_STATE.DEVOUR) {
+        bgVideo.style.backgroundColor = "#a0a";
+        videoSrc = CONFIG.media.bg_at_story; // 神を喰らえ中は通常AT背景の上にイベント動画が乗るイメージ
+    }
+    if (state === GAME_STATE.AT_SUPER_HANNIBAL || state === GAME_STATE.BLACK_PREDATOR) {
+        bgVideo.style.backgroundColor = "#202";
+        videoSrc = CONFIG.media.bg_upper_at;
+    }
+    if (state === GAME_STATE.KAMIOCHI) {
+        bgVideo.style.backgroundColor = "#f0f";
+        videoSrc = CONFIG.media.bg_kamiochi;
     }
 
     // 素材が設定されている場合はvideoタグのソースを更新
@@ -228,6 +286,27 @@ function setMediaForState(state) {
             bgVideo.play().catch(e => console.log("Video play was prevented"));
         }
     }
+}
+
+
+function playEventVideo(type, duration = 2000) {
+    let src = "";
+    if (type === "rare") src = CONFIG.media.event_rare;
+    if (type === "win") src = CONFIG.media.event_win;
+    if (type === "lose") src = CONFIG.media.event_lose;
+    if (type === "devour") src = CONFIG.media.event_devour;
+
+    if (!src) return;
+
+    eventVideo.src = src;
+    eventVideoLayer.classList.remove("hidden");
+    eventVideo.play().catch(e => console.log("Event video play prevented"));
+
+    // 一定時間後に隠す (本来は動画のendedイベントで隠すのが綺麗ですが、簡略化のため固定時間)
+    setTimeout(() => {
+        eventVideoLayer.classList.add("hidden");
+        eventVideo.pause();
+    }, duration);
 }
 
 function showCutin(type) {
@@ -356,6 +435,7 @@ function onAllReelsStopped() {
         totalDiff = 0;
         logMessage(`エンディング到達！ ツラヌキ要素発動！`);
         showCutin("win");
+            playEventVideo("win");
         // ツラヌキ恩恵: 漆黒の捕喰者 or 神堕
         setTimeout(() => {
             if(Math.random() < 0.5) changeState(GAME_STATE.KAMIOCHI);
@@ -456,6 +536,11 @@ function triggerAT() {
 }
 
 function changeState(newState) {
+    if (newState === GAME_STATE.NORMAL) {
+        normalGames = 0;
+        currentNormalStage = NORMAL_STAGE.BASE;
+    }
+
     currentState = newState;
     setMediaForState(newState);
 
@@ -479,7 +564,6 @@ function changeState(newState) {
         lampAt.classList.add("active-at");
     }
     else if (newState === GAME_STATE.NORMAL) {
-        normalGames = 0;
         lampAt.classList.remove("active-at");
     }
     else if (newState === GAME_STATE.CZ_DEFENSE) {
@@ -503,8 +587,16 @@ function updateDisplay() {
 
     switch(currentState) {
         case GAME_STATE.NORMAL:
-            stateDisplay.classList.add("neon-text-green");
-            stateText = "通常";
+            if (currentNormalStage === NORMAL_STAGE.BASE) {
+                stateDisplay.classList.add("neon-text-green");
+                stateText = "通常 (エントランス)";
+            } else if (currentNormalStage === NORMAL_STAGE.HIGH) {
+                stateDisplay.classList.add("neon-text-blue");
+                stateText = "高確 (カフェ)";
+            } else if (currentNormalStage === NORMAL_STAGE.ULTRA) {
+                stateDisplay.classList.add("neon-text-red");
+                stateText = "前兆 (作戦区域)";
+            }
             gamesText = `G: ${normalGames}`;
             break;
         case GAME_STATE.CZ_DEFENSE:
