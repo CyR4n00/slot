@@ -89,6 +89,19 @@ const reelElements = [
     [document.getElementById("symbol-right-top"), document.getElementById("symbol-right-mid"), document.getElementById("symbol-right-bot")]
 ];
 
+// --- 音声(Audio)オブジェクト管理 ---
+const audioElements = {
+    bgm: new Audio(),
+    se: new Audio()
+};
+audioElements.bgm.loop = true; // BGMはループ再生
+
+function playSE(src) {
+    if (!src) return;
+    const se = new Audio(src);
+    se.play().catch(e => console.log("SE play prevented:", e));
+}
+
 // --- 初期化処理 ---
 function init() {
     updateDisplay();
@@ -205,6 +218,7 @@ function processStateTransition(role) {
         if (Math.random() * 100 < actualProb) {
             logMessage("CZ成功！ アラガミバースト(AT)へ！");
             showCutin("win");
+            playSE(CONFIG.media.se_win);
             playEventVideo("win");
             setTimeout(() => triggerAT(), 1500);
         }
@@ -225,9 +239,13 @@ function processStateTransition(role) {
                 }
                 previousAtState = currentState; // Remember the AT state
                 showCutin("win");
-            playEventVideo("win");
+                playSE(CONFIG.media.se_win);
+                playEventVideo("win");
                 setTimeout(() => changeState(GAME_STATE.DEVOUR), 1500);
-                setTimeout(() => playEventVideo("devour", 3000), 1600);
+                setTimeout(() => {
+                    playSE(CONFIG.media.se_devour);
+                    playEventVideo("devour", 3000);
+                }, 1600);
             } else {
                 logMessage("バトル敗北... ST継続");
             }
@@ -286,6 +304,24 @@ function setMediaForState(state) {
             bgVideo.play().catch(e => console.log("Video play was prevented"));
         }
     }
+
+    // BGMの切り替え
+    let bgmSrc = "";
+    if (state === GAME_STATE.NORMAL) bgmSrc = CONFIG.media.bgm_normal;
+    else if (state === GAME_STATE.CZ_DEFENSE || state === GAME_STATE.CZ_EXTERMINATION) bgmSrc = CONFIG.media.bgm_cz;
+    else if (state === GAME_STATE.AT_STORY) bgmSrc = CONFIG.media.bgm_at_story;
+    else if (state === GAME_STATE.AT_ST) bgmSrc = CONFIG.media.bgm_at_st;
+    else if (state === GAME_STATE.AT_SUPER_HANNIBAL || state === GAME_STATE.BLACK_PREDATOR) bgmSrc = CONFIG.media.bgm_upper_at;
+    else if (state === GAME_STATE.KAMIOCHI) bgmSrc = CONFIG.media.bgm_kamiochi;
+
+    if (bgmSrc) {
+        if (!audioElements.bgm.src.endsWith(bgmSrc)) {
+            audioElements.bgm.src = bgmSrc;
+            audioElements.bgm.play().catch(e => console.log("BGM play was prevented (user interaction required):", e));
+        }
+    } else {
+        audioElements.bgm.pause();
+    }
 }
 
 
@@ -324,6 +360,8 @@ function showCutin(type) {
 function onMaxBet() {
     if (isReelSpinning || isComplete || betAmount === 3) return;
 
+    playSE(CONFIG.media.se_bet);
+
     if (credit < 3) {
         credit += 50; // クレジットが足りない場合はオートチャージ
     }
@@ -344,12 +382,15 @@ function onMaxBet() {
 
 function onPush() {
     // PUSHボタンが押された時の演出用（現状はダミーログとアニメーション効果）
+    playSE(CONFIG.media.se_push);
     logMessage("PUSHボタン押下！");
     // ここにカットインや特殊SEの再生などを後付け可能
 }
 
 function onLeverOn() {
     if (isReelSpinning || isComplete || betAmount < 3) return;
+
+    playSE(CONFIG.media.se_lever);
 
     // 抽選
     currentRole = lottery();
@@ -379,6 +420,8 @@ function onLeverOn() {
 
 function onStop(reelIndex) {
     if (!spinningReels[reelIndex]) return;
+
+    playSE(CONFIG.media.se_stop);
 
     spinningReels[reelIndex] = false;
     btnStops[reelIndex].disabled = true;

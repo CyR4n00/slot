@@ -39,6 +39,23 @@ const CONFIG = {
     symbol_watermelon: "assets/images/watermelon.png",
     symbol_cherry: "assets/images/cherry.png",
     symbol_blank: "assets/images/blank.png",
+
+    // ------------------------------------
+    // 【音声・BGM・SE】 (後からご自身のmp3等に差し替えてください)
+    // ------------------------------------
+    bgm_normal: "assets/audio/bgm_normal.mp3",           // 通常時のBGM
+    bgm_cz: "assets/audio/bgm_cz.mp3",                   // CZ中のBGM
+    bgm_at_story: "assets/audio/bgm_at_story.mp3",       // ATストーリーパートBGM
+    bgm_at_st: "assets/audio/bgm_at_st.mp3",             // AT(ST)中のBGM
+    bgm_upper_at: "assets/audio/bgm_upper_at.mp3",       // 上位ATのBGM
+    bgm_kamiochi: "assets/audio/bgm_kamiochi.mp3",       // 神堕BGM
+
+    se_bet: "assets/audio/se_bet.mp3",                   // MAX BET音
+    se_lever: "assets/audio/se_lever.mp3",               // レバーON音
+    se_stop: "assets/audio/se_stop.mp3",                 // 停止ボタン音
+    se_push: "assets/audio/se_push.mp3",                 // PUSHボタン音
+    se_win: "assets/audio/se_win.mp3",                   // 当たり・勝利音
+    se_devour: "assets/audio/se_devour.mp3",             // 神を喰らえ音
   },
 
   // --- 確率・抽選設定 (分母の数値を指定) ---
