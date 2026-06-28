@@ -73,6 +73,9 @@ const CONFIG = {
   system: {
     st_games: 25,
     ceiling_games: 1000,
+    zone_interval: 130,          // 前兆（作戦区域）に入るゲーム数の間隔
+    zone_duration: 15,           // 前兆（作戦区域）の継続ゲーム数
+    zone_at_win_rate: [20, 22, 25, 27, 30, 35], // 作戦区域経由でのAT直撃当選確率(設定1〜6)
 }
 };
 
