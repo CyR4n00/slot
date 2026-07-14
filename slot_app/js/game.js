@@ -34,6 +34,7 @@ const SYMBOLS = {
 let currentState = GAME_STATE.NORMAL;
 let normalGames = 0; // 通常時消化ゲーム数 (天井管理)
 let currentNormalStage = NORMAL_STAGE.BASE;
+let ultraGamesLeft = 0; // 前兆(作戦区域)の残りゲーム数
 let czGamesLeft = 0;
 let atStoryMedalsLeft = 0; // ストーリーパート残り枚数 (差枚数管理)
 let atStGamesLeft = 0; // アラガミ交戦 (ST) 残りゲーム数
@@ -88,6 +89,19 @@ const reelElements = [
     [document.getElementById("symbol-center-top"), document.getElementById("symbol-center-mid"), document.getElementById("symbol-center-bot")],
     [document.getElementById("symbol-right-top"), document.getElementById("symbol-right-mid"), document.getElementById("symbol-right-bot")]
 ];
+
+// --- 音声(Audio)オブジェクト管理 ---
+const audioElements = {
+    bgm: new Audio(),
+    se: new Audio()
+};
+audioElements.bgm.loop = true; // BGMはループ再生
+
+function playSE(src) {
+    if (!src) return;
+    const se = new Audio(src);
+    se.play().catch(e => console.log("SE play prevented:", e));
+}
 
 // --- 初期化処理 ---
 function init() {
@@ -151,29 +165,53 @@ function processStateTransition(role) {
     if (currentState === GAME_STATE.NORMAL) {
         normalGames++;
 
-        // ステージ移行抽選 (ゲーム数やレア役で移行)
-        if (normalGames % 100 === 0) {
-            // ゾーン到達で前兆(ULTRA)へ
-            currentNormalStage = NORMAL_STAGE.ULTRA;
-            logMessage(`${normalGames}G ゾーン到達！ 前兆ステージへ移行`);
-            updateDisplay(); // update visuals immediately
-        } else if (role === SYMBOLS.RARE || role === SYMBOLS.CHERRY || role === SYMBOLS.WATERMELON) {
-            // レア役で高確(HIGH)へ
-            if (currentNormalStage !== NORMAL_STAGE.ULTRA) {
-                currentNormalStage = NORMAL_STAGE.HIGH;
-                logMessage("レア役成立！ 高確ステージへ移行");
-                playEventVideo("rare", 1500);
+        // 前兆（作戦区域）中の処理
+        if (currentNormalStage === NORMAL_STAGE.ULTRA) {
+            ultraGamesLeft--;
+            if (ultraGamesLeft <= 0) {
+                // 前兆終了時に当落判定
+                const winRate = CONFIG.system.zone_at_win_rate[CONFIG.currentSetting - 1];
+                if (Math.random() * 100 < winRate) {
+                    logMessage("作戦区域 成功！ アラガミバースト(AT)へ！");
+                    showCutin("win");
+                    playSE(CONFIG.media.se_win);
+                    playEventVideo("win");
+                    setTimeout(() => triggerAT(), 1500);
+                    return; // 状態移行するため以降の処理はスキップ
+                } else {
+                    logMessage("作戦区域 失敗... 通常ステージへ");
+                    currentNormalStage = NORMAL_STAGE.BASE;
+                    setMediaForState(currentState);
+                    updateDisplay();
+                }
+            }
+        } else {
+            // ステージ移行抽選 (ゲーム数やレア役で移行)
+            if (normalGames > 0 && normalGames % CONFIG.system.zone_interval === 0) {
+                // 130Gごとのゾーン到達で前兆(ULTRA: 作戦区域)へ
+                currentNormalStage = NORMAL_STAGE.ULTRA;
+                ultraGamesLeft = CONFIG.system.zone_duration;
+                logMessage(`${normalGames}G 規定ゲーム数到達！ 作戦区域（前兆）へ移行`);
+                setMediaForState(currentState);
+                updateDisplay();
+            } else if (role === SYMBOLS.RARE || role === SYMBOLS.CHERRY || role === SYMBOLS.WATERMELON) {
+                // レア役で高確(HIGH)へ
+                if (currentNormalStage !== NORMAL_STAGE.ULTRA) {
+                    currentNormalStage = NORMAL_STAGE.HIGH;
+                    logMessage("レア役成立！ 高確ステージへ移行");
+                    playEventVideo("rare", 1500);
+                    setMediaForState(currentState);
+                    updateDisplay();
+                }
+            } else if (currentNormalStage === NORMAL_STAGE.HIGH && Math.random() < 0.05) {
+                // 高確滞在時は毎ゲーム5%で通常ステージに転落
+                currentNormalStage = NORMAL_STAGE.BASE;
                 setMediaForState(currentState);
                 updateDisplay();
             }
-        } else if (currentNormalStage !== NORMAL_STAGE.BASE && Math.random() < 0.05) {
-            // 毎ゲーム5%で通常ステージに転落
-            currentNormalStage = NORMAL_STAGE.BASE;
-            setMediaForState(currentState);
-            updateDisplay();
         }
         // 天井 (1000G)
-        if (normalGames >= 1000) {
+        if (normalGames >= CONFIG.system.ceiling_games) {
             logMessage("天井到達 (1000G) -> アラガミバースト(AT)へ");
             triggerAT();
             return;
@@ -205,6 +243,7 @@ function processStateTransition(role) {
         if (Math.random() * 100 < actualProb) {
             logMessage("CZ成功！ アラガミバースト(AT)へ！");
             showCutin("win");
+            playSE(CONFIG.media.se_win);
             playEventVideo("win");
             setTimeout(() => triggerAT(), 1500);
         }
@@ -225,9 +264,13 @@ function processStateTransition(role) {
                 }
                 previousAtState = currentState; // Remember the AT state
                 showCutin("win");
-            playEventVideo("win");
+                playSE(CONFIG.media.se_win);
+                playEventVideo("win");
                 setTimeout(() => changeState(GAME_STATE.DEVOUR), 1500);
-                setTimeout(() => playEventVideo("devour", 3000), 1600);
+                setTimeout(() => {
+                    playSE(CONFIG.media.se_devour);
+                    playEventVideo("devour", 3000);
+                }, 1600);
             } else {
                 logMessage("バトル敗北... ST継続");
             }
@@ -286,6 +329,24 @@ function setMediaForState(state) {
             bgVideo.play().catch(e => console.log("Video play was prevented"));
         }
     }
+
+    // BGMの切り替え
+    let bgmSrc = "";
+    if (state === GAME_STATE.NORMAL) bgmSrc = CONFIG.media.bgm_normal;
+    else if (state === GAME_STATE.CZ_DEFENSE || state === GAME_STATE.CZ_EXTERMINATION) bgmSrc = CONFIG.media.bgm_cz;
+    else if (state === GAME_STATE.AT_STORY) bgmSrc = CONFIG.media.bgm_at_story;
+    else if (state === GAME_STATE.AT_ST) bgmSrc = CONFIG.media.bgm_at_st;
+    else if (state === GAME_STATE.AT_SUPER_HANNIBAL || state === GAME_STATE.BLACK_PREDATOR) bgmSrc = CONFIG.media.bgm_upper_at;
+    else if (state === GAME_STATE.KAMIOCHI) bgmSrc = CONFIG.media.bgm_kamiochi;
+
+    if (bgmSrc) {
+        if (!audioElements.bgm.src.endsWith(bgmSrc)) {
+            audioElements.bgm.src = bgmSrc;
+            audioElements.bgm.play().catch(e => console.log("BGM play was prevented (user interaction required):", e));
+        }
+    } else {
+        audioElements.bgm.pause();
+    }
 }
 
 
@@ -324,6 +385,8 @@ function showCutin(type) {
 function onMaxBet() {
     if (isReelSpinning || isComplete || betAmount === 3) return;
 
+    playSE(CONFIG.media.se_bet);
+
     if (credit < 3) {
         credit += 50; // クレジットが足りない場合はオートチャージ
     }
@@ -344,12 +407,15 @@ function onMaxBet() {
 
 function onPush() {
     // PUSHボタンが押された時の演出用（現状はダミーログとアニメーション効果）
+    playSE(CONFIG.media.se_push);
     logMessage("PUSHボタン押下！");
     // ここにカットインや特殊SEの再生などを後付け可能
 }
 
 function onLeverOn() {
     if (isReelSpinning || isComplete || betAmount < 3) return;
+
+    playSE(CONFIG.media.se_lever);
 
     // 抽選
     currentRole = lottery();
@@ -379,6 +445,8 @@ function onLeverOn() {
 
 function onStop(reelIndex) {
     if (!spinningReels[reelIndex]) return;
+
+    playSE(CONFIG.media.se_stop);
 
     spinningReels[reelIndex] = false;
     btnStops[reelIndex].disabled = true;
@@ -590,14 +658,16 @@ function updateDisplay() {
             if (currentNormalStage === NORMAL_STAGE.BASE) {
                 stateDisplay.classList.add("neon-text-green");
                 stateText = "通常 (エントランス)";
+                gamesText = `G: ${normalGames}`;
             } else if (currentNormalStage === NORMAL_STAGE.HIGH) {
                 stateDisplay.classList.add("neon-text-blue");
                 stateText = "高確 (カフェ)";
+                gamesText = `G: ${normalGames}`;
             } else if (currentNormalStage === NORMAL_STAGE.ULTRA) {
                 stateDisplay.classList.add("neon-text-red");
                 stateText = "前兆 (作戦区域)";
+                gamesText = `G: ${normalGames} (残り${ultraGamesLeft}G)`;
             }
-            gamesText = `G: ${normalGames}`;
             break;
         case GAME_STATE.CZ_DEFENSE:
             stateDisplay.classList.add("neon-text-yellow");
